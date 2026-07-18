@@ -1,8 +1,16 @@
+use std::io::{self, Write};
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Color {
     White,
     Black,
 }
+
+// Masks to prevent pieces from wrapping around the board edges
+const NOT_A_FILE: u64  = 0xFEFE_FEFE_FEFE_FEFE;
+const NOT_AB_FILE: u64 = 0xFCFC_FCFC_FCFC_FCFC;
+const NOT_H_FILE: u64  = 0x7F7F_7F7F_7F7F_7F7F;
+const NOT_GH_FILE: u64 = 0x3F3F_3F3F_3F3F_3F3F;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Board {
@@ -100,9 +108,117 @@ impl Board {
     }
 }
 
+pub fn generate_knight_attacks(square: u8) -> u64 {
+    // Place a single Knight on an empty bitboard at the requested square
+    let knight: u64 = 1u64 << square;
+    let mut attacks: u64 = 0;
+
+    // North-North-East (+17) and North-East-East (+10)
+    // We use NOT_A_FILE and NOT_AB_FILE to ensure it didn't wrap around the right side
+    attacks |= (knight << 17) & NOT_A_FILE;
+    attacks |= (knight << 10) & NOT_AB_FILE;
+
+    // South-East-East (-6) and South-South-East (-15)
+    attacks |= (knight >> 6) & NOT_AB_FILE;
+    attacks |= (knight >> 15) & NOT_A_FILE;
+
+    // North-North-West (+15) and North-West-West (+6)
+    attacks |= (knight << 15) & NOT_H_FILE;
+    attacks |= (knight << 6) & NOT_GH_FILE;
+
+    // South-West-West (-10) and South-South-West (-17)
+    attacks |= (knight >> 10) & NOT_GH_FILE;
+    attacks |= (knight >> 17) & NOT_H_FILE;
+
+    attacks
+}
+
+pub fn generate_king_attacks(square: u8) -> u64 {
+    let king: u64 = 1u64 << square;
+    let mut attacks: u64 = 0;
+
+    // East (+1) and West (-1)
+    attacks |= (king << 1) & NOT_A_FILE;
+    attacks |= (king >> 1) & NOT_H_FILE;
+
+    // North (+8) and South (-8)
+    // These don't need file masks because moving straight up/down can't wrap around the left/right edges
+    attacks |= king << 8;
+    attacks |= king >> 8;
+
+    // North-East (+9) and North-West (+7)
+    attacks |= (king << 9) & NOT_A_FILE;
+    attacks |= (king << 7) & NOT_H_FILE;
+
+    // South-East (-7) and South-West (-9)
+    attacks |= (king >> 7) & NOT_A_FILE;
+    attacks |= (king >> 9) & NOT_H_FILE;
+
+    attacks
+}
+
 fn main() {
-    let game_board = Board::new_starting_position();
+    let mut game_board = Board::new_starting_position();
     
-    println!("Initial Position:");
+    println!("=================================");
+    println!("  Rust Chess Engine Initialized  ");
+    println!("=================================");
     game_board.print();
+
+    loop {
+        // 1. Create a prompt showing whose turn it is
+        let turn_label = match game_board.side_to_move {
+            Color::White => "White",
+            Color::Black => "Black",
+        };
+        
+        print!("{} to move > ", turn_label);
+        
+        // Rust normally buffers output. This forces the prompt to show up immediately.
+        io::stdout().flush().unwrap(); 
+
+        // 2. Wait for the user to type something and press Enter
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).expect("Failed to read line");
+        
+        // Trim whitespace and the hidden newline character from the input
+        let command = input.trim(); 
+
+        // 3. Figure out what the user typed
+        match command {
+            "quit" | "exit" => {
+                println!("Shutting down engine. Thanks for playing!");
+                break;
+            }
+            "board" => game_board.print(),
+            "test" => {
+                // Let's test a King sitting on e4 (square 28)
+                println!("King attacks from e4:");
+                let attacks = generate_king_attacks(28);
+                
+                let mut dummy = Board::new_starting_position();
+                
+                // Wipe the board
+                dummy.white_pawns = 0; dummy.white_knights = 0; dummy.white_bishops = 0; 
+                dummy.white_rooks = 0; dummy.white_queens = 0; dummy.white_king = 0;
+                dummy.black_pawns = 0; dummy.black_knights = 0; dummy.black_bishops = 0; 
+                dummy.black_rooks = 0; dummy.black_queens = 0; dummy.black_king = 0;
+                
+                // Put the attacks on the white_king board so they print as 'K'
+                dummy.white_king = attacks;
+                dummy.print();
+            }            "help" => {
+                println!("Available commands:");
+                println!("  board - Show the current board state");
+                println!("  help  - Show this message");
+                println!("  quit  - Exit the engine");
+                println!("  (Move parsing like 'e4' or 'Nf3' is coming next!)");
+            }
+            "" => continue, // If they just hit Enter, do nothing and ask again
+            _ => {
+                // This is the fallback for any other text (which will eventually be our chess moves)
+                println!("You tried to play '{}'. We need to teach the engine how to read that!", command);
+            }
+        }
+    }
 }
