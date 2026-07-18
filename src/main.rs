@@ -65,14 +65,44 @@ impl Board {
             fullmove_number: 1,
         }
     }
+    pub fn print(&self) {
+        println!("\n  a b c d e f g h");
+        
+        // Loop from rank 7 down to 0 (Rank 8 down to Rank 1)
+        for rank in (0..8).rev() {
+            print!("{} ", rank + 1); // Print the rank number on the left
+            
+            for file in 0..8 {
+                let square = rank * 8 + file;
+                let bit = 1u64 << square; // Shift a 1 to the current square's position
+
+                // Check which bitboard has a 1 at this position
+                let c = if (self.white_pawns & bit) != 0 { 'P' }
+                else if (self.white_knights & bit) != 0 { 'N' }
+                else if (self.white_bishops & bit) != 0 { 'B' }
+                else if (self.white_rooks & bit) != 0 { 'R' }
+                else if (self.white_queens & bit) != 0 { 'Q' }
+                else if (self.white_king & bit) != 0 { 'K' }
+                else if (self.black_pawns & bit) != 0 { 'p' }
+                else if (self.black_knights & bit) != 0 { 'n' }
+                else if (self.black_bishops & bit) != 0 { 'b' }
+                else if (self.black_rooks & bit) != 0 { 'r' }
+                else if (self.black_queens & bit) != 0 { 'q' }
+                else if (self.black_king & bit) != 0 { 'k' }
+                else { '.' }; // Empty square
+
+                print!("{} ", c);
+            }
+            println!("{}", rank + 1); // Print the rank number on the right
+        }
+        
+        println!("  a b c d e f g h\n");
+    }
 }
 
 fn main() {
-    // Initialize the board
     let game_board = Board::new_starting_position();
     
-    // Print the raw data to make sure it compiled correctly
-    println!("The engine is alive!");
-    println!("White to move: {:#?}", game_board.side_to_move);
-    println!("All occupancy (raw u64): {}", game_board.all_occupancy);
+    println!("Initial Position:");
+    game_board.print();
 }
